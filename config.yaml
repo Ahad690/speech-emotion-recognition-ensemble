@@ -1,0 +1,40 @@
+# Configuration for Speech Emotion Recognition
+project:
+  name: "Speech Emotion Recognition"
+  version: "1.0.0"
+  
+data:
+  sample_rate: 16000
+  duration: 3.0
+  train_split: 0.7
+  val_split: 0.15
+  test_split: 0.15
+  
+features:
+  n_mfcc: 40
+  n_mels: 128
+  n_fft: 2048
+  hop_length: 512
+  
+training:
+  batch_size: 256
+  epochs: 100
+  learning_rate: 0.001
+  early_stopping_patience: 10
+  optimizer: "adam"
+  
+models:
+  ensemble:
+    use_cnn: true
+    use_lstm: true
+    use_transformer: true
+  dropout: 0.3
+  
+emotions:
+  - neutral
+  - happy
+  - sad
+  - angry
+  - fear
+  - disgust
+  - surprise
