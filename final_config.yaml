@@ -1,0 +1,43 @@
+# Project
+project_name = "Speech Emotion Recognition"
+
+# Data
+sample_rate = 16000
+duration = 3.0
+n_classes = 8
+
+# Features
+n_mfcc = 40
+n_mels = 128
+n_fft = 2048
+hop_length = 512
+
+# Data splits
+train_size = 0.7
+val_size = 0.15
+test_size = 0.15
+
+# OPTIMIZED Training for Dual T4
+batch_size = 256  # INCREASED from 64 to 256!
+epochs = 100
+learning_rate = 1e-3
+early_stopping_patience = 10
+
+# Enable gradient accumulation for even larger effective batch
+gradient_accumulation_steps = 2  # Effective batch = 512
+
+# Model
+model_type = 'ensemble'
+dropout = 0.3
+
+# Augmentation
+use_augmentation = True
+augment_prob = 0.5
+
+# Performance optimization
+num_workers = 4  # For faster data loading
+pin_memory = True  # For faster GPU transfer
+
+# Paths
+data_path = '/kaggle/working/'  # Or '/kaggle/input/' if using Add Data
+save_path = '/kaggle/working/'
