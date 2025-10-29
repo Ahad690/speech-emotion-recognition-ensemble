@@ -32,7 +32,8 @@ pip install -r requirements.txt
 │   ├── 02_gpu_optimization.ipynb
 │   └── 03_test_time_augmentation.ipynb
 ├── reports/
-│   └── ANN_DL_Final_Report.pdf
+│   ├── ANN_DL_Final_Report.pdf
+|   └── ANN_DL_Report.md
 ├── src/
 │   ├── models/
 |
@@ -44,6 +45,10 @@ pip install -r requirements.txt
 ├── README.md
 │   
 └── requirements.txt
+├── .gitignore
+├── config_optimized.yaml
+└── final_config.yaml
+
 ```
 
 ## Performance Metrics
