@@ -303,9 +303,9 @@ The system shows particular strength in detecting distinct emotions (Surprise: 8
 ## **Appendix A: Code Repository**
 
 ```
-GitHub Repository: [Your GitHub Link]
-Kaggle Notebook: [Your Kaggle Link]
-Model Weights: Available on request (38MB)
+GitHub Repository: `@ahad4200`
+Kaggle Notebook: `@mahad69`
+Model Weights: Included (38MB)
 ```
 
 ## **Appendix B: Reproducibility Checklist**
