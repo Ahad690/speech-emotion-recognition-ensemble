@@ -1,0 +1,36 @@
+# Project
+project_name = "Speech Emotion Recognition"
+
+# Data
+sample_rate = 16000
+duration = 3.0
+n_classes = 7
+
+# Features
+n_mfcc = 40
+n_mels = 128
+n_fft = 2048
+hop_length = 512
+
+# Data splits
+train_size = 0.7
+val_size = 0.15
+test_size = 0.15
+
+# IMPROVED Training parameters
+batch_size = 64
+epochs = 150  # Increased from 100
+learning_rate = 5e-4  # Reduced from 1e-3
+early_stopping_patience = 15  # Increased from 10
+
+# Model
+model_type = 'ensemble'
+dropout = 0.4  # Increased from 0.3 for better regularization
+
+# IMPROVED Augmentation
+use_augmentation = True
+augment_prob = 0.7  # Increased from 0.5
+
+# Paths
+data_path = '/kaggle/working/'  # Or '/kaggle/input/' if using Add Data
+save_path = '/kaggle/working/'
