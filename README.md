@@ -16,7 +16,7 @@
 ## Quick Start
 ```bash
 # Clone repository
-git clone https://github.com/ahad420/speech-emotion-recognition-ensemble.git
+git clone https://github.com/Ahad4200/speech-emotion-recognition-ensemble.git
 
 # Install dependencies
 pip install -r requirements.txt
