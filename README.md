@@ -30,21 +30,56 @@ pip install -r requirements.txt
 Run emotion recognition on any audio file:
 
 ```python
-# 1. Clone & Setup
+# ============================================
+# Speech Emotion Recognition - Complete Setup & Inference
+# ============================================
 import os
+
+# 1. Clone Repository
 REPO_NAME = 'speech-emotion-recognition-ensemble'
+GITHUB_USER = 'Ahad690'
+
 if not os.path.exists(REPO_NAME):
-    !git clone https://github.com/Ahad690/{REPO_NAME}.git
+    print("📥 Cloning repository...")
+    !git clone https://github.com/{GITHUB_USER}/{REPO_NAME}.git
+else:
+    print("📁 Repository already exists, updating...")
+    %cd {REPO_NAME}
+    !git pull
+    %cd ..
     
 %cd {REPO_NAME}
-!pip install -r requirements.txt -q
 
-# 2. Run Inference (uses random sample from sample_audio/)
+# 2. Install Dependencies (including soundfile for torchaudio fallback)
+print("\n📦 Installing dependencies...")
+!pip install -q torch torchaudio librosa matplotlib soundfile numpy scipy
+
+# 3. Run Inference (randomly selects a .wav file from sample_audio/)
+print("\n🔮 Running emotion recognition on random sample...")
 !python inference.py
 
-# 3. Display Result
-from IPython.display import Image, display
-display(Image('prediction_result.png'))
+# 4. Play Audio Manually (plays the SAME file that was analyzed)
+print("\n🔊 Playing audio manually...")
+from IPython.display import Audio, display
+
+# Read the audio file that was just analyzed
+if os.path.exists('.last_audio.txt'):
+    with open('.last_audio.txt', 'r') as f:
+        audio_file = f.read().strip()
+    print(f"Playing analyzed file: {audio_file}")
+    display(Audio(audio_file))
+else:
+    print("⚠️  Could not find .last_audio.txt - file path not saved")
+
+# 5. Display Result
+print("\n📊 Displaying result...")
+from IPython.display import Image
+if os.path.exists('prediction_result.png'):
+    display(Image('prediction_result.png'))
+else:
+    print("❌ Result image not found")
+
+print("\n✅ Complete! Run again to test a different random sample.")
 ```
 
 ### Using Custom Audio File
@@ -74,8 +109,26 @@ python inference.py
 # Use specific audio file
 python inference.py --audio path/to/your/audio.wav
 
+# Play audio automatically (works in Colab/Jupyter)
+python inference.py --play
+
+# Show debug information
+python inference.py --debug
+
 # Save result image
 python inference.py --audio audio.wav --save
+```
+
+### Alternative: Automatic Audio Playback
+
+```python
+# Run inference with automatic audio playback
+!python inference.py --play
+
+# Display result
+from IPython.display import Image
+if os.path.exists('prediction_result.png'):
+    display(Image('prediction_result.png'))
 ```
 
 ### Kaggle Notebook
