@@ -256,7 +256,27 @@ def load_and_preprocess_audio(audio_path, config, debug=False):
     print(f"Loading audio: {audio_path}")
     
     # Load audio using torchaudio (same as training)
-    waveform, sr = torchaudio.load(audio_path)
+    # Fallback to soundfile backend if torchcodec not available
+    try:
+        waveform, sr = torchaudio.load(audio_path)
+    except (ImportError, RuntimeError) as e:
+        if debug:
+            print(f"   torchaudio.load() failed: {e}")
+            print("   Falling back to soundfile backend...")
+        try:
+            # Try with soundfile backend
+            waveform, sr = torchaudio.load(audio_path, backend='soundfile')
+        except Exception:
+            # Final fallback: use librosa and convert to torch tensor
+            if debug:
+                print("   Falling back to librosa...")
+            import librosa
+            waveform_np, sr = librosa.load(audio_path, sr=None, mono=False)
+            # Convert to torch tensor format [channels, samples]
+            if waveform_np.ndim == 1:
+                waveform = torch.from_numpy(waveform_np).unsqueeze(0)
+            else:
+                waveform = torch.from_numpy(waveform_np)
     
     if debug:
         print(f"   Original: shape={waveform.shape}, sr={sr}")
@@ -318,7 +338,18 @@ def play_audio(audio_path, sample_rate=16000):
     """Play audio file - works in Colab/Jupyter"""
     try:
         if IPYTHON_AVAILABLE:
-            waveform, sr = torchaudio.load(audio_path)
+            # Try torchaudio with fallback
+            try:
+                waveform, sr = torchaudio.load(audio_path)
+            except (ImportError, RuntimeError):
+                try:
+                    waveform, sr = torchaudio.load(audio_path, backend='soundfile')
+                except Exception:
+                    # Fallback to librosa
+                    import librosa
+                    waveform_np, sr = librosa.load(audio_path, sr=sample_rate, mono=True)
+                    waveform = torch.from_numpy(waveform_np).unsqueeze(0)
+            
             if sr != sample_rate:
                 resampler = T.Resample(sr, sample_rate)
                 waveform = resampler(waveform)
