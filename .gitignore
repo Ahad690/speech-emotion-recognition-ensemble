@@ -22,6 +22,7 @@ data/
 
 # Results
 prediction_result.png
+.last_audio.txt
 
 # Logs and tracking
 wandb/
