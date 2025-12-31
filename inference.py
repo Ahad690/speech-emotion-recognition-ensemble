@@ -1,17 +1,14 @@
 """
-Speech Emotion Recognition - Inference Script
-=============================================
+Speech Emotion Recognition - Inference Script (FIXED)
+=====================================================
 This script loads the trained ensemble model and predicts emotion from audio files.
 
 Usage:
     python inference.py                          # Uses random sample from sample_audio/
     python inference.py --audio path/to/file.wav # Uses specific audio file
-    python inference.py --play                  # Play audio before prediction
+    python inference.py --play                   # Play audio before prediction
     python inference.py --audio file.wav --save  # Saves result image
-    
-Manual Audio Playback (Colab/Jupyter):
-    from IPython.display import Audio
-    Audio('sample_audio/your_file.wav')
+    python inference.py --debug                  # Show debug information
 """
 
 import os
@@ -26,9 +23,10 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchaudio
+import torchaudio.transforms as T
 import librosa
 import librosa.display
-import soundfile as sf
 
 # Try to import IPython for Colab audio playback
 try:
@@ -38,10 +36,10 @@ except ImportError:
     IPYTHON_AVAILABLE = False
 
 # ==========================================
-# Configuration
+# Configuration (MUST MATCH TRAINING!)
 # ==========================================
 class Config:
-    """Configuration for inference"""
+    """Configuration for inference - matches training config"""
     sample_rate = 16000
     duration = 3.0
     n_mels = 128
@@ -52,7 +50,7 @@ class Config:
 
 config = Config()
 
-# Emotion labels
+# Emotion labels (MUST match training order!)
 EMOTION_LABELS = ['neutral', 'happy', 'sad', 'angry', 'fear', 'disgust', 'surprise']
 
 # Emotion emojis for display
@@ -78,7 +76,7 @@ EMOTION_COLORS = {
 }
 
 # ==========================================
-# Model Definitions (Same as training)
+# Model Definitions (EXACT COPY FROM TRAINING)
 # ==========================================
 class CNNModel(nn.Module):
     """CNN for emotion recognition"""
@@ -233,101 +231,114 @@ class EnsembleModel(nn.Module):
         output = w[0] * cnn_out + w[1] * lstm_out + w[2] * transformer_out
         
         return output
+    
+    def get_individual_predictions(self, x):
+        """Get predictions from each model separately (for debugging)"""
+        with torch.no_grad():
+            cnn_out = F.softmax(self.cnn(x), dim=1)
+            lstm_out = F.softmax(self.lstm(x), dim=1)
+            transformer_out = F.softmax(self.transformer(x), dim=1)
+        return {
+            'cnn': cnn_out.cpu().numpy()[0],
+            'lstm': lstm_out.cpu().numpy()[0],
+            'transformer': transformer_out.cpu().numpy()[0]
+        }
 
 
 # ==========================================
-# Audio Processing
+# Audio Processing (MATCHES TRAINING EXACTLY!)
 # ==========================================
-def load_and_preprocess_audio(audio_path, config):
+def load_and_preprocess_audio(audio_path, config, debug=False):
     """
     Load and preprocess audio file for inference
+    MUST MATCH TRAINING PREPROCESSING EXACTLY!
     """
     print(f"Loading audio: {audio_path}")
     
-    # Load audio
-    waveform, sr = librosa.load(audio_path, sr=config.sample_rate, mono=True)
+    # Load audio using torchaudio (same as training)
+    waveform, sr = torchaudio.load(audio_path)
     
-    # Normalize
-    waveform = waveform / (np.max(np.abs(waveform)) + 1e-8)
+    if debug:
+        print(f"   Original: shape={waveform.shape}, sr={sr}")
     
-    # Pad or truncate to fixed duration
+    # Resample if necessary (same as training)
+    if sr != config.sample_rate:
+        resampler = T.Resample(sr, config.sample_rate)
+        waveform = resampler(waveform)
+        if debug:
+            print(f"   Resampled to {config.sample_rate} Hz")
+    
+    # Convert to mono if stereo (same as training)
+    if waveform.shape[0] > 1:
+        waveform = torch.mean(waveform, dim=0, keepdim=True)
+        if debug:
+            print(f"   Converted to mono")
+    
+    # Pad or truncate to fixed duration (same as training)
     target_length = int(config.sample_rate * config.duration)
-    if len(waveform) > target_length:
-        waveform = waveform[:target_length]
+    if waveform.shape[1] > target_length:
+        waveform = waveform[:, :target_length]
     else:
-        waveform = np.pad(waveform, (0, target_length - len(waveform)))
+        padding = target_length - waveform.shape[1]
+        waveform = torch.nn.functional.pad(waveform, (0, padding))
     
-    # Extract Mel-spectrogram
-    mel_spec = librosa.feature.melspectrogram(
-        y=waveform,
-        sr=config.sample_rate,
+    if debug:
+        print(f"   After pad/truncate: shape={waveform.shape}")
+    
+    # Extract Mel-spectrogram (EXACTLY as in training!)
+    mel_transform = T.MelSpectrogram(
+        sample_rate=config.sample_rate,
         n_mels=config.n_mels,
         n_fft=config.n_fft,
         hop_length=config.hop_length
     )
     
-    # Convert to dB
-    mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)
+    mel_spec = mel_transform(waveform)
     
-    # Normalize
-    mel_spec_db = (mel_spec_db - mel_spec_db.mean()) / (mel_spec_db.std() + 1e-8)
+    # Convert to dB (EXACTLY as in training!)
+    mel_spec_db = T.AmplitudeToDB()(mel_spec)
     
-    return waveform, mel_spec_db
+    if debug:
+        print(f"   Mel-spectrogram shape: {mel_spec_db.shape}")
+        print(f"   Mel-spectrogram range: [{mel_spec_db.min():.2f}, {mel_spec_db.max():.2f}]")
+    
+    # Remove channel dimension for return (shape: [n_mels, time])
+    mel_spec_db = mel_spec_db.squeeze(0)
+    
+    # Convert waveform to numpy for visualization
+    waveform_np = waveform.squeeze().numpy()
+    
+    return waveform_np, mel_spec_db
 
 
 # ==========================================
 # Audio Playback
 # ==========================================
 def play_audio(audio_path, sample_rate=16000):
-    """
-    Play audio file - works in both Colab and local environments
-    """
+    """Play audio file - works in Colab/Jupyter"""
     try:
-        # Load original audio for playback
-        waveform, sr = librosa.load(audio_path, sr=sample_rate, mono=True)
-        
         if IPYTHON_AVAILABLE:
-            # Google Colab / Jupyter - use IPython.display.Audio
+            waveform, sr = torchaudio.load(audio_path)
+            if sr != sample_rate:
+                resampler = T.Resample(sr, sample_rate)
+                waveform = resampler(waveform)
             print("🔊 Playing audio...")
-            audio_widget = Audio(waveform, rate=sr, autoplay=True)
+            audio_widget = Audio(waveform.numpy().squeeze(), rate=sample_rate, autoplay=True)
             ipython_display(audio_widget)
             return True
         else:
-            # Local environment - save temporary file and play
-            import tempfile
-            import platform
-            
-            temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-            sf.write(temp_file.name, waveform, sr)
-            
-            print("🔊 Playing audio...")
-            system = platform.system()
-            
-            if system == 'Windows':
-                import winsound
-                winsound.PlaySound(temp_file.name, winsound.SND_FILENAME)
-            elif system == 'Darwin':  # macOS
-                os.system(f'afplay "{temp_file.name}"')
-            else:  # Linux
-                os.system(f'aplay "{temp_file.name}" 2>/dev/null || paplay "{temp_file.name}" 2>/dev/null')
-            
-            # Clean up
-            os.unlink(temp_file.name)
-            return True
-            
+            print("⚠️  Audio playback only available in Jupyter/Colab")
+            return False
     except Exception as e:
         print(f"⚠️  Could not play audio: {e}")
-        print("   Audio file is available for manual playback if needed.")
         return False
 
 
 # ==========================================
 # Model Loading
 # ==========================================
-def load_model(model_path, device):
-    """
-    Load the trained model
-    """
+def load_model(model_path, device, debug=False):
+    """Load the trained model"""
     print(f"Loading model from: {model_path}")
     
     # Initialize model
@@ -336,6 +347,9 @@ def load_model(model_path, device):
     # Load checkpoint
     checkpoint = torch.load(model_path, map_location=device, weights_only=False)
     
+    if debug:
+        print(f"   Checkpoint keys: {checkpoint.keys()}")
+    
     # Handle DataParallel saved models
     state_dict = checkpoint['model_state_dict']
     
@@ -343,7 +357,7 @@ def load_model(model_path, device):
     new_state_dict = {}
     for key, value in state_dict.items():
         if key.startswith('module.'):
-            new_key = key[7:]  # Remove 'module.' prefix
+            new_key = key[7:]
         else:
             new_key = key
         new_state_dict[new_key] = value
@@ -353,29 +367,52 @@ def load_model(model_path, device):
     model.eval()
     
     print(f"✅ Model loaded successfully!")
-    val_acc = checkpoint.get('val_acc', None)
-    if val_acc is not None:
-        print(f"   Validation Accuracy: {val_acc:.2f}%")
-    else:
-        print(f"   Validation Accuracy: N/A")
     
-    return model
+    # Show validation accuracy if available
+    if 'val_acc' in checkpoint:
+        print(f"   Validation Accuracy: {checkpoint['val_acc']:.2f}%")
+    else:
+        print(f"   Validation Accuracy: Not saved in checkpoint")
+    
+    # Show epoch if available
+    if 'epoch' in checkpoint:
+        print(f"   Trained Epochs: {checkpoint['epoch'] + 1}")
+    
+    # Show ensemble weights
+    with torch.no_grad():
+        weights = F.softmax(model.weights, dim=0)
+        print(f"   Ensemble Weights: CNN={weights[0]:.3f}, LSTM={weights[1]:.3f}, Trans={weights[2]:.3f}")
+    
+    return model, checkpoint
 
 
 # ==========================================
 # Inference
 # ==========================================
-def predict_emotion(model, mel_spec, device):
-    """
-    Predict emotion from mel-spectrogram
-    """
-    # Convert to tensor
-    features = torch.FloatTensor(mel_spec).unsqueeze(0).to(device)
+def predict_emotion(model, mel_spec, device, debug=False):
+    """Predict emotion from mel-spectrogram"""
+    
+    # mel_spec is already a tensor from preprocessing
+    if isinstance(mel_spec, np.ndarray):
+        features = torch.FloatTensor(mel_spec).unsqueeze(0).to(device)
+    else:
+        features = mel_spec.unsqueeze(0).to(device)
+    
+    if debug:
+        print(f"   Input shape to model: {features.shape}")
     
     # Inference
     with torch.no_grad():
         outputs = model(features)
         probabilities = F.softmax(outputs, dim=1).cpu().numpy()[0]
+        
+        if debug:
+            # Get individual model predictions
+            individual = model.get_individual_predictions(features)
+            print("\n   Individual Model Predictions:")
+            for model_name, probs in individual.items():
+                pred_idx = np.argmax(probs)
+                print(f"      {model_name.upper():12s}: {EMOTION_LABELS[pred_idx]:10s} ({probs[pred_idx]*100:.1f}%)")
     
     # Get prediction
     predicted_idx = np.argmax(probabilities)
@@ -390,9 +427,14 @@ def predict_emotion(model, mel_spec, device):
 # ==========================================
 def visualize_prediction(audio_path, waveform, mel_spec, predicted_emotion, 
                          confidence, probabilities, save_path=None):
-    """
-    Create a comprehensive visualization of the prediction
-    """
+    """Create visualization of the prediction"""
+    
+    # Convert mel_spec to numpy if tensor
+    if isinstance(mel_spec, torch.Tensor):
+        mel_spec_np = mel_spec.numpy()
+    else:
+        mel_spec_np = mel_spec
+    
     fig = plt.figure(figsize=(14, 10))
     
     # Title with emoji
@@ -412,21 +454,14 @@ def visualize_prediction(audio_path, waveform, mel_spec, predicted_emotion,
     
     # 2. Mel-Spectrogram
     ax2 = fig.add_subplot(2, 2, 2)
-    img = librosa.display.specshow(
-        mel_spec, 
-        sr=config.sample_rate, 
-        hop_length=config.hop_length,
-        x_axis='time', 
-        y_axis='mel',
-        ax=ax2,
-        cmap='magma'
-    )
-    ax2.set_title('Mel-Spectrogram', fontsize=14, fontweight='bold')
+    img = ax2.imshow(mel_spec_np, aspect='auto', origin='lower', cmap='magma',
+                     extent=[0, config.duration, 0, config.n_mels])
+    ax2.set_title('Mel-Spectrogram (dB)', fontsize=14, fontweight='bold')
     ax2.set_xlabel('Time (s)', fontsize=12)
-    ax2.set_ylabel('Frequency (Hz)', fontsize=12)
+    ax2.set_ylabel('Mel Bin', fontsize=12)
     plt.colorbar(img, ax=ax2, format='%+2.0f dB')
     
-    # 3. Emotion Probabilities (Horizontal Bar)
+    # 3. Emotion Probabilities
     ax3 = fig.add_subplot(2, 2, 3)
     colors = [EMOTION_COLORS[e] for e in EMOTION_LABELS]
     bars = ax3.barh(EMOTION_LABELS, probabilities * 100, color=colors, edgecolor='black', linewidth=1)
@@ -450,7 +485,6 @@ def visualize_prediction(audio_path, waveform, mel_spec, predicted_emotion,
     ax4 = fig.add_subplot(2, 2, 4)
     ax4.axis('off')
     
-    # Create summary text
     summary_text = f"""
     ╔═══════════════════════════════════════╗
     ║         PREDICTION SUMMARY            ║
@@ -464,7 +498,6 @@ def visualize_prediction(audio_path, waveform, mel_spec, predicted_emotion,
     ║  Top 3 Predictions:                   ║
     """
     
-    # Get top 3 predictions
     top3_idx = np.argsort(probabilities)[::-1][:3]
     for i, idx in enumerate(top3_idx):
         emoji = EMOTION_EMOJIS[EMOTION_LABELS[idx]]
@@ -478,15 +511,44 @@ def visualize_prediction(audio_path, waveform, mel_spec, predicted_emotion,
     
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     
-    # Save or show
-    if save_path:
-        plt.savefig(save_path, dpi=150, bbox_inches='tight', facecolor='white')
-        print(f"📊 Result saved to: {save_path}")
-    
+    # Always save to prediction_result.png
     plt.savefig('prediction_result.png', dpi=150, bbox_inches='tight', facecolor='white')
     print(f"📊 Result saved to: prediction_result.png")
     
+    if save_path and save_path != 'prediction_result.png':
+        plt.savefig(save_path, dpi=150, bbox_inches='tight', facecolor='white')
+        print(f"📊 Result also saved to: {save_path}")
+    
     plt.show()
+
+
+# ==========================================
+# Debug Function
+# ==========================================
+def debug_checkpoint(model_path):
+    """Debug function to inspect checkpoint contents"""
+    print("\n" + "=" * 60)
+    print("🔍 CHECKPOINT DEBUG INFO")
+    print("=" * 60)
+    
+    checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
+    
+    print(f"\nCheckpoint keys: {list(checkpoint.keys())}")
+    
+    for key in checkpoint.keys():
+        if key == 'model_state_dict':
+            print(f"\nModel layers ({len(checkpoint[key])} total):")
+            for i, (k, v) in enumerate(checkpoint[key].items()):
+                if i < 5:
+                    print(f"   {k}: {v.shape}")
+            if len(checkpoint[key]) > 5:
+                print(f"   ... and {len(checkpoint[key]) - 5} more layers")
+        elif key == 'config':
+            print(f"\nSaved config: {type(checkpoint[key])}")
+        else:
+            print(f"\n{key}: {checkpoint[key]}")
+    
+    print("=" * 60)
 
 
 # ==========================================
@@ -502,6 +564,8 @@ def main():
                         help='Save prediction result image')
     parser.add_argument('--play', action='store_true',
                         help='Play audio file (works in Colab/Jupyter)')
+    parser.add_argument('--debug', action='store_true',
+                        help='Show debug information')
     args = parser.parse_args()
     
     print("=" * 60)
@@ -512,40 +576,8 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     
-    # Find audio file
-    if args.audio:
-        audio_path = args.audio
-        # Warn if not WAV
-        if not audio_path.lower().endswith('.wav'):
-            print("⚠️  WARNING: Model was trained on .wav files only!")
-            print("   Other formats may work but are not guaranteed.")
-            print("   For best results, convert to .wav format.\n")
-    else:
-        # Use random sample from sample_audio/ (WAV files only)
-        sample_dir = 'sample_audio'
-        if os.path.exists(sample_dir):
-            audio_files = [f for f in os.listdir(sample_dir) 
-                          if f.lower().endswith('.wav')]
-            if audio_files:
-                audio_path = os.path.join(sample_dir, random.choice(audio_files))
-                print(f"📁 Selected random WAV sample: {audio_path}")
-            else:
-                print("❌ No WAV files found in sample_audio/")
-                print("   Please add .wav files or use --audio flag")
-                sys.exit(1)
-        else:
-            print("❌ sample_audio/ directory not found")
-            print("   Please create it and add audio files, or use --audio flag")
-            sys.exit(1)
-    
-    # Check if file exists
-    if not os.path.exists(audio_path):
-        print(f"❌ Audio file not found: {audio_path}")
-        sys.exit(1)
-    
-    # Load model
+    # Find model file
     if not os.path.exists(args.model):
-        # Try alternative paths
         alt_paths = [
             'src/models/final_model.pth',
             'src/models/best_model.pth',
@@ -565,24 +597,48 @@ def main():
             print(f"   Searched: {args.model} and alternatives")
             sys.exit(1)
     
-    model = load_model(args.model, device)
+    # Debug checkpoint if requested
+    if args.debug:
+        debug_checkpoint(args.model)
     
-    # Process audio
-    waveform, mel_spec = load_and_preprocess_audio(audio_path, config)
+    # Find audio file
+    if args.audio:
+        audio_path = args.audio
+        if not audio_path.lower().endswith('.wav'):
+            print("⚠️  WARNING: Model was trained on .wav files only!")
+    else:
+        sample_dir = 'sample_audio'
+        if os.path.exists(sample_dir):
+            audio_files = [f for f in os.listdir(sample_dir) if f.lower().endswith('.wav')]
+            if audio_files:
+                audio_path = os.path.join(sample_dir, random.choice(audio_files))
+                print(f"📁 Selected random WAV sample: {audio_path}")
+            else:
+                print("❌ No WAV files found in sample_audio/")
+                sys.exit(1)
+        else:
+            print("❌ sample_audio/ directory not found")
+            sys.exit(1)
+    
+    # Check if file exists
+    if not os.path.exists(audio_path):
+        print(f"❌ Audio file not found: {audio_path}")
+        sys.exit(1)
+    
+    # Load model
+    model, checkpoint = load_model(args.model, device, debug=args.debug)
+    
+    # Process audio (USING TRAINING-MATCHING PREPROCESSING!)
+    waveform, mel_spec = load_and_preprocess_audio(audio_path, config, debug=args.debug)
     
     # Play audio if requested
     if args.play:
         print()
         play_audio(audio_path, config.sample_rate)
-    else:
-        # Show manual playback option for Colab
-        if IPYTHON_AVAILABLE:
-            print(f"\n💡 To play audio, use: Audio('{audio_path}')")
-            print("   Or run with --play flag: python inference.py --play")
     
     # Predict
     print("\n🔮 Predicting emotion...")
-    predicted_emotion, confidence, probabilities = predict_emotion(model, mel_spec, device)
+    predicted_emotion, confidence, probabilities = predict_emotion(model, mel_spec, device, debug=args.debug)
     
     # Print results
     print("\n" + "=" * 60)
