@@ -16,7 +16,7 @@
 ## Quick Start
 ```bash
 # Clone repository
-git clone https://github.com/Ahad4200/speech-emotion-recognition-ensemble.git
+git clone https://github.com/Ahad690/speech-emotion-recognition-ensemble.git
 
 # Install dependencies
 pip install -r requirements.txt
@@ -34,7 +34,7 @@ Run emotion recognition on any audio file:
 import os
 REPO_NAME = 'speech-emotion-recognition-ensemble'
 if not os.path.exists(REPO_NAME):
-    !git clone https://github.com/Ahad4200/{REPO_NAME}.git
+    !git clone https://github.com/Ahad690/{REPO_NAME}.git
     
 %cd {REPO_NAME}
 !pip install -r requirements.txt -q
