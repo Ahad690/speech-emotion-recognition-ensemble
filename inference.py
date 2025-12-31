@@ -294,7 +294,11 @@ def load_model(model_path, device):
     model.eval()
     
     print(f"✅ Model loaded successfully!")
-    print(f"   Validation Accuracy: {checkpoint.get('val_acc', 'N/A'):.2f}%")
+    val_acc = checkpoint.get('val_acc', None)
+    if val_acc is not None:
+        print(f"   Validation Accuracy: {val_acc:.2f}%")
+    else:
+        print(f"   Validation Accuracy: N/A")
     
     return model
 
