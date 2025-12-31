@@ -656,6 +656,10 @@ def main():
         print(f"❌ Audio file not found: {audio_path}")
         sys.exit(1)
     
+    # Save audio path for Colab manual playback
+    with open('.last_audio.txt', 'w') as f:
+        f.write(audio_path)
+    
     # Load model
     model, checkpoint = load_model(args.model, device, debug=args.debug)
     
