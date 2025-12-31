@@ -25,30 +25,95 @@ pip install -r requirements.txt
 # Upload notebook to Kaggle and select GPU T4 x2
 ```
 
+## 🚀 Quick Inference (Google Colab)
+
+Run emotion recognition on any audio file:
+
+```python
+# 1. Clone & Setup
+import os
+REPO_NAME = 'speech-emotion-recognition-ensemble'
+if not os.path.exists(REPO_NAME):
+    !git clone https://github.com/Ahad4200/{REPO_NAME}.git
+    
+%cd {REPO_NAME}
+!pip install -r requirements.txt -q
+
+# 2. Run Inference (uses random sample from sample_audio/)
+!python inference.py
+
+# 3. Display Result
+from IPython.display import Image, display
+display(Image('prediction_result.png'))
+```
+
+### Using Custom Audio File
+
+```python
+# Upload your audio file
+from google.colab import files
+uploaded = files.upload()
+
+# Get filename
+audio_file = list(uploaded.keys())[0]
+
+# Run inference
+!python inference.py --audio {audio_file}
+
+# Display result
+from IPython.display import Image, display
+display(Image('prediction_result.png'))
+```
+
+### Command Line Options
+
+```bash
+# Use random sample (randomly selects a .wav file from sample_audio/)
+python inference.py
+
+# Use specific audio file
+python inference.py --audio path/to/your/audio.wav
+
+# Save result image
+python inference.py --audio audio.wav --save
+```
+
+### Kaggle Notebook
+[View on Kaggle](https://www.kaggle.com/code/mahad69/speech-emotion-recognition-ensemble)
+
 ## Repository Structure
 ```
+speech-emotion-recognition-ensemble/
+├── .gitignore
+├── README.md                          # Updated with inference instructions
+├── requirements.txt                   # Updated with inference deps
+├── inference.py                       # Main inference script
+├── config.yaml
+├── config_optimized.yaml
+├── final_config.yaml
 ├── notebooks/
 │   ├── 01_initial_implementation.ipynb
 │   ├── 02_gpu_optimization.ipynb
 │   └── 03_test_time_augmentation.ipynb
-├── reports/
+├── report/
 │   ├── ANN_DL_Final_Report.pdf
-|   └── ANN_DL_Report.md
-├── src/
-│   ├── models/
-|
+│   └── ANN_DL_Report.md
 ├── results/
+│   ├── confidence_distribution.png
 │   ├── confusion_matrix.png
-│   └── training_curves.png
-└── requirements.txt
-├── config.yaml
-├── README.md
-│   
-└── requirements.txt
-├── .gitignore
-├── config_optimized.yaml
-└── final_config.yaml
-
+│   ├── ensemble_model_contribution_weights.png
+│   ├── per-class_accuracy.png
+│   ├── results.json
+│   ├── top_20_most_important_features.png
+│   └── training_history.png
+├── sample_audio/                      # Sample audio files
+│   ├── README.md
+│   └── *.wav                          # Audio samples for testing
+└── src/
+    ├── augmentation.py
+    └── models/
+        ├── best_model.pth
+        └── final_model.pth
 ```
 
 ## Performance Metrics
@@ -79,4 +144,3 @@ If you use this code, please cite:
 
 ## 📄 License
 This project is for educational purposes. MIT License.
-```

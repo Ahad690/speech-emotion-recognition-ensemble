@@ -1,9 +1,28 @@
-"*.pyc" 
-"__pycache__/" 
-"*.pth" 
-"*.h5" 
-"*.wav" 
-"data/" 
-".ipynb_checkpoints/" 
-"wandb/" 
-"logs/" 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+
+# Model files - included in repository
+# Note: If models become too large (>100MB), consider using Git LFS
+# *.pth
+*.h5
+
+# Audio files (too large for git)
+*.mp3
+*.flac
+*.ogg
+# Keep only small sample WAV files in sample_audio/
+*.wav
+!sample_audio/*.wav
+
+# Data directories
+data/
+
+# Results
+prediction_result.png
+
+# Logs and tracking
+wandb/
+logs/ 
