@@ -6,7 +6,12 @@ This script loads the trained ensemble model and predicts emotion from audio fil
 Usage:
     python inference.py                          # Uses random sample from sample_audio/
     python inference.py --audio path/to/file.wav # Uses specific audio file
-    python inference.py --audio path/to/file.wav --save  # Saves result image
+    python inference.py --play                  # Play audio before prediction
+    python inference.py --audio file.wav --save  # Saves result image
+    
+Manual Audio Playback (Colab/Jupyter):
+    from IPython.display import Audio
+    Audio('sample_audio/your_file.wav')
 """
 
 import os
@@ -23,6 +28,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 import librosa
 import librosa.display
+import soundfile as sf
+
+# Try to import IPython for Colab audio playback
+try:
+    from IPython.display import Audio, display as ipython_display
+    IPYTHON_AVAILABLE = True
+except ImportError:
+    IPYTHON_AVAILABLE = False
 
 # ==========================================
 # Configuration
@@ -263,6 +276,52 @@ def load_and_preprocess_audio(audio_path, config):
 
 
 # ==========================================
+# Audio Playback
+# ==========================================
+def play_audio(audio_path, sample_rate=16000):
+    """
+    Play audio file - works in both Colab and local environments
+    """
+    try:
+        # Load original audio for playback
+        waveform, sr = librosa.load(audio_path, sr=sample_rate, mono=True)
+        
+        if IPYTHON_AVAILABLE:
+            # Google Colab / Jupyter - use IPython.display.Audio
+            print("🔊 Playing audio...")
+            audio_widget = Audio(waveform, rate=sr, autoplay=True)
+            ipython_display(audio_widget)
+            return True
+        else:
+            # Local environment - save temporary file and play
+            import tempfile
+            import platform
+            
+            temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+            sf.write(temp_file.name, waveform, sr)
+            
+            print("🔊 Playing audio...")
+            system = platform.system()
+            
+            if system == 'Windows':
+                import winsound
+                winsound.PlaySound(temp_file.name, winsound.SND_FILENAME)
+            elif system == 'Darwin':  # macOS
+                os.system(f'afplay "{temp_file.name}"')
+            else:  # Linux
+                os.system(f'aplay "{temp_file.name}" 2>/dev/null || paplay "{temp_file.name}" 2>/dev/null')
+            
+            # Clean up
+            os.unlink(temp_file.name)
+            return True
+            
+    except Exception as e:
+        print(f"⚠️  Could not play audio: {e}")
+        print("   Audio file is available for manual playback if needed.")
+        return False
+
+
+# ==========================================
 # Model Loading
 # ==========================================
 def load_model(model_path, device):
@@ -441,6 +500,8 @@ def main():
                         help='Path to model file')
     parser.add_argument('--save', action='store_true',
                         help='Save prediction result image')
+    parser.add_argument('--play', action='store_true',
+                        help='Play audio file (works in Colab/Jupyter)')
     args = parser.parse_args()
     
     print("=" * 60)
@@ -508,6 +569,16 @@ def main():
     
     # Process audio
     waveform, mel_spec = load_and_preprocess_audio(audio_path, config)
+    
+    # Play audio if requested
+    if args.play:
+        print()
+        play_audio(audio_path, config.sample_rate)
+    else:
+        # Show manual playback option for Colab
+        if IPYTHON_AVAILABLE:
+            print(f"\n💡 To play audio, use: Audio('{audio_path}')")
+            print("   Or run with --play flag: python inference.py --play")
     
     # Predict
     print("\n🔮 Predicting emotion...")
